@@ -35,7 +35,7 @@ This command will run a task for the specified time in minutes.
 
 - Once the time is up, it will play an audible sound.
 - The task will be logged to a database and a log file.
-- The program will then display logs from the last 24 hours to review what you have completed for the day.
+- The program will then display logs from the last 12 hours to review what you have completed for the day.
 
 ## What is inside? 
 
@@ -65,4 +65,4 @@ prettytable    When querries the DB it shows in a formated table.
 
 ## Install:
 
-either run the requirements on your system pip or run use a 
+either run the requirements on your system pip or run use a virtual environment 
