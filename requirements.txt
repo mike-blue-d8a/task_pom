@@ -1,0 +1,5 @@
+duckdb
+duckcli
+playsound
+tqdm
+prettytable

@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+
+import argparse
+import datetime
+import time
+import os
+from AppKit import NSSound
+from tqdm import trange
+from datetime import datetime, timedelta
+import duckdb
+from prettytable import PrettyTable
+
+def play_sound(sound_file):
+    """Plays a sound using NSSound from PyObjC."""
+    sound = NSSound.alloc().initWithContentsOfFile_byReference_(sound_file, True)
+    if sound:
+        sound.setVolume_(1.0)  # Set volume to maximum
+        sound.play()
+
+        timeout = time.time() + 1  # Timeout after 1 second giving time for sound to finish
+        while sound.isPlaying():
+            time.sleep(0.1)  # Wait until the sound has finished playing
+            if time.time() > timeout:
+                break  # Break the loop if timeout is reached
+    else:
+        print("Error: Unable to play sound")
+
+def write_log(start_time, end_time, log_message, duration):
+    """Writes a log message to the task_pom table in the new DuckDB database."""
+    db_path = 'data/task_pom.db'
+    conn = duckdb.connect(db_path)
+
+    # Insert log entry into the task_pom table on duckdb
+    conn.execute("""
+        INSERT INTO task_pom (file_name, start_time, end_time, duration, created_on, comment)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (f'task_logs_{datetime.now().strftime("%Y%m%d")}.log', start_time, end_time, duration, datetime.now(), log_message))
+
+    conn.close()
+
+def write_log_file(start_time, end_time, log_message, duration):
+    """Writes a log message to a file with a timestamp."""
+    log_dir = os.path.expanduser("task_log/")
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    timestamp = datetime.now().strftime("%Y%m%d")
+    log_filename = f"{log_dir}task_logs_{timestamp}.log"
+    with open(log_filename, "a") as log_file:
+        log_file.write(f"Start Time: {start_time}\n")
+        log_file.write(f"End Time: {end_time}\n")
+        log_file.write(f"{log_message}\n")
+        log_file.write(f"Done. Duration: {duration} minutes\n\n")
+
+def read_logs_from_last_12_hours():
+    """Reads and prints log entries from the task_pom table for the last 12 hours and calculates total duration."""
+    db_path = 'data/task_pom.db'
+    conn = duckdb.connect(db_path)
+
+    last_12_hours = datetime.now() - timedelta(hours=12)
+    query = """
+        SELECT file_name, start_time, end_time, duration, created_on, comment
+        FROM task_pom
+        WHERE created_on >= ?
+    """
+    results = conn.execute(query, (last_12_hours,)).fetchall()
+
+    # Create a PrettyTable instance
+    table = PrettyTable()
+    table.field_names = ["File Name", "Start Time", "End Time", "Duration", "Created On", "Comment"]
+
+    # Get the Duration from the dataset 
+    total_duration = 0
+    for row in results:
+        table.add_row(row)
+        total_duration += row[3]  # Sum the duration
+
+    print("\nLogs from the last 12 hours:")
+    print(table)
+    print(f"\nTotal Duration: {total_duration:.2f} minutes")
+
+    conn.close()
+
+def main():
+    """Parses arguments, displays a progress bar, plays a sound, and logs the task."""
+    parser = argparse.ArgumentParser(description="Run a timer with a progress bar and optional logging.")
+    parser.add_argument("--time", "-t", type=int, help="Time in minutes (e.g., --time 20)")
+    parser.add_argument("--log", type=str, help="Log text to write (e.g., --log 'Running load test')")
+    args = parser.parse_args()
+
+    start_time = datetime.now()
+    start_time_str = start_time.strftime("%I:%M %p")
+    print(f"Started at {start_time_str}")
+
+    if args.time:
+        timed_minutes = args.time
+        timed_seconds = timed_minutes * 60
+
+        with trange(timed_seconds, desc="Progress", colour="#18F6F6") as pbar:
+            for _ in pbar:
+                time.sleep(1)
+
+    # Play the sound using PyObjC
+    play_sound("data/stop_clock_completed.mp3")
+
+    end_time = datetime.now()
+    end_time_str = end_time.strftime("%I:%M %p")
+    print(f"Time is UP! {end_time_str}")
+
+    if args.log:
+        duration = (end_time - start_time).total_seconds() / 60
+        write_log(start_time_str, end_time_str, args.log, duration)
+        write_log_file(start_time_str, end_time_str, args.log, duration)
+    
+    # Read and print logs from the last 12 hours
+    read_logs_from_last_12_hours()
+
+if __name__ == "__main__":
+    main()
